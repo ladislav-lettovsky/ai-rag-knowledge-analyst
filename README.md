@@ -59,19 +59,19 @@ cp .env.example .env
 
 ```bash
 # Run all 3 modes on built-in questions
-python3 -m rag_analyst
+uv run python -m rag_analyst
 
 # Run a custom query
-python3 -m rag_analyst -q "Who are the authors?"
+uv run python -m rag_analyst -q "Who are the authors?"
 
 # Run only RAG mode with evaluation
-python3 -m rag_analyst --mode rag --evaluate
+uv run python -m rag_analyst --mode rag --evaluate
 
 # Show comparison report
-python3 -m rag_analyst --report
+uv run python -m rag_analyst --report
 
 # All options
-python3 -m rag_analyst --mode {raw,engineered,rag,all} \
+uv run python -m rag_analyst --mode {raw,engineered,rag,all} \
                        --query "Your question" \
                        --evaluate \
                        --k 6 \
