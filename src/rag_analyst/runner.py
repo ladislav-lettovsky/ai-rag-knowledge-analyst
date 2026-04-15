@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from .config import RESULTS_DIR, SIMILARITY_K
 from .evaluation import response_evaluation
@@ -79,7 +80,7 @@ def _run_modes(
     mode: str,
     vectorstore,
     document_chunks: list,
-    content,
+    content: str,
     k: int,
     evaluate: bool,
 ) -> list[dict]:
@@ -115,8 +116,11 @@ def main(argv: list[str] | None = None) -> None:
 
     # --- Ingest ---
     print("Loading and chunking PDF...")
-    content = load_pdf()
-    document_chunks = chunk_documents()
+    pages = load_pdf()
+    # Reuse already-loaded pages to avoid reading the PDF twice.
+    document_chunks = chunk_documents(pages)
+    # Flatten Document list to a plain string for evaluation context.
+    content = " ".join(doc.page_content for doc in pages)
 
     print("Building vector store...")
     vectorstore = build_vectorstore(document_chunks)
@@ -155,8 +159,6 @@ def main(argv: list[str] | None = None) -> None:
 
     # --- JSON output ---
     if not args.no_json:
-        from pathlib import Path
-
         output_dir = Path(args.json_output) if args.json_output else None
         filepath = write_json_results(all_results, output_dir=output_dir)
         print(f"\nResults written to {filepath}")

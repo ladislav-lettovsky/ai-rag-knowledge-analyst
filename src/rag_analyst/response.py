@@ -34,12 +34,12 @@ def llm_response(
         temperature=temperature,
         top_p=top_p,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 
 def eng_response(
     user_prompt: str,
-    max_tokens: int = 100,
+    max_tokens: int = MAX_TOKENS,
     temperature: float = TEMPERATURE,
     top_p: float = TOP_P,
 ) -> str:
@@ -55,7 +55,7 @@ def eng_response(
         temperature=temperature,
         top_p=top_p,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 
 def rag_response(
@@ -90,4 +90,4 @@ def rag_response(
         temperature=temperature,
         top_p=top_p,
     )
-    return response.choices[0].message.content.strip()
+    return (response.choices[0].message.content or "").strip()

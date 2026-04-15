@@ -21,7 +21,7 @@ def _get_evaluate_llm() -> ChatOpenAI:
     return _evaluate_llm
 
 
-def response_evaluation(content, question: str, response: str) -> str:
+def response_evaluation(content: str, question: str, response: str) -> str:
     """Evaluate response accuracy using GPT-4o on groundedness and precision."""
     evaluation_prompt = f"""
     Evaluate the assistant's response to a user's query using the provided context.

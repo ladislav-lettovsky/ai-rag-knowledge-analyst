@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,6 +26,11 @@ PDF_FILENAME: str = os.environ.get("PDF_FILENAME", "HBR_How_Apple_Is_Organized_F
 # API / model settings
 # ---------------------------------------------------------------------------
 OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
+if not OPENAI_API_KEY:
+    warnings.warn(
+        "OPENAI_API_KEY is not set — all API calls will fail with an authentication error.",
+        stacklevel=2,
+    )
 OPENAI_BASE_URL: str | None = os.environ.get("OPENAI_BASE_URL") or None
 
 MODEL_GENERATION: str = os.environ.get("MODEL_GENERATION", "gpt-4o-mini")

@@ -18,7 +18,7 @@ def retrieve_context(
     Always includes the first chunk (title page with author/publisher metadata)
     since semantic search often misses metadata-heavy content.
     """
-    k = k or SIMILARITY_K
+    k = SIMILARITY_K if k is None else k
     relevant_chunks = vectorstore.similarity_search(query, k=k)
     context_list = [d.page_content for d in relevant_chunks]
 

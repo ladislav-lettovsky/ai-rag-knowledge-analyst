@@ -25,16 +25,26 @@ def load_pdf() -> list:
     return loader.load()
 
 
-def chunk_documents() -> list:
-    """Load PDF and split into token-sized chunks."""
-    pdf_path = DATA_DIR / PDF_FILENAME
-    loader = PyMuPDFLoader(str(pdf_path))
+def chunk_documents(pages: list | None = None) -> list:
+    """Load PDF and split into token-sized chunks.
+
+    Parameters
+    ----------
+    pages:
+        Pre-loaded page Documents (e.g. from :func:`load_pdf`).  When
+        *None* the PDF is loaded from disk automatically.  Passing an
+        already-loaded list avoids reading the file a second time.
+    """
+    if pages is None:
+        pdf_path = DATA_DIR / PDF_FILENAME
+        loader = PyMuPDFLoader(str(pdf_path))
+        pages = loader.load()
     text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
         encoding_name=ENCODING_NAME,
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
     )
-    return loader.load_and_split(text_splitter)
+    return text_splitter.split_documents(pages)
 
 
 def build_vectorstore(document_chunks: list | None = None) -> Chroma:
@@ -43,8 +53,8 @@ def build_vectorstore(document_chunks: list | None = None) -> Chroma:
         document_chunks = chunk_documents()
 
     embedding_model = OpenAIEmbeddings(
-        openai_api_key=OPENAI_API_KEY,
-        openai_api_base=OPENAI_BASE_URL,
+        api_key=OPENAI_API_KEY,
+        base_url=OPENAI_BASE_URL,
     )
 
     return Chroma.from_documents(document_chunks, embedding_model)
