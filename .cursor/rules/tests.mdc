@@ -1,0 +1,96 @@
+---
+description: Test conventions for pytest-based tests in this repo
+globs: tests/**/*.py
+---
+
+# Test conventions
+
+## Canonical commands
+- Run all tests: `just test` (wraps `uv run pytest`)
+- Full quality gate: `just check` (pre-commit + ty + pytest)
+- Deterministic-only (what CI runs): no key set, API-gated tests auto-skip
+
+## File and class structure
+- One test file per source module (`test_ingest.py` for `ingest.py`,
+  `test_retrieval.py` for `retrieval.py`, etc.)
+- Module docstring required: `"""Tests for X."""`
+- Group related tests in `Test<Concept>` classes (pytest auto-discovers these)
+- Plain `def test_*` methods inside classes — do **not** use `unittest.TestCase`
+- Private helpers prefix with `_` (e.g., `_make_chunks()`) so pytest
+  won't collect them as tests
+
+## API-gated tests — `skipif`, not `skip`
+Tests that require live OpenAI calls (`test_retrieval.py`,
+`test_response.py`, `test_evaluation.py`) set a module-level
+`pytestmark` that auto-skips without a key:
+
+```python
+HAS_API_KEY = bool(os.environ.get("OPENAI_API_KEY"))
+pytestmark = pytest.mark.skipif(not HAS_API_KEY, reason="OPENAI_API_KEY not set")
+```
+
+This is deliberate — CI is deterministic, not a billing line item. Never
+let these tests hard-fail on missing env. Run locally with a real key
+before merging any change to `ingest.py`, `retrieval.py`, `response.py`,
+or `evaluation.py`.
+
+## Deterministic tests are the default
+`test_ingest.py` runs PDF loading + chunking without touching the
+network and must stay deterministic. New deterministic tests should
+live next to it in the same file or in a new `test_<module>.py` for a
+newly added non-API module.
+
+## Mocking LLMs (when you need to)
+Do NOT mock at the `langchain_openai` or `openai` module level. Patch
+the lazy-init helper (`response._get_client`,
+`evaluation._get_evaluate_llm`) or the specific call chain. This keeps
+tests stable across LangChain / OpenAI SDK version bumps.
+
+Return values must match the shape production code reads:
+
+```python
+# Mock OpenAI chat.completions.create
+mock_client.chat.completions.create.return_value = SimpleNamespace(
+    choices=[SimpleNamespace(message=SimpleNamespace(content="answer"))]
+)
+
+# Mock ChatOpenAI.invoke
+mock_llm.invoke.return_value = AIMessage(content="groundedness: 0.9, precision: 0.8")
+```
+
+## Environment setup belongs in `conftest.py`
+Shared setup (sys.path, env vars like `LANGCHAIN_TRACING_V2=false`) lives
+in `tests/conftest.py`, not in individual test files. If you need a new
+shared fixture, add it there.
+
+## Architectural-invariant tests
+Some tests encode contracts from the codebase (not just behavior). Treat
+these as load-bearing:
+
+- `test_ingest.py::test_chunks_under_max_tokens` — the 512-token ceiling
+  (2× `CHUNK_SIZE`) protects prompt-size budgets. If you change
+  `CHUNK_SIZE`, update the bound in the same PR.
+- `test_retrieval.py::test_first_chunk_always_included` — locks in the
+  first-chunk injection in `retrieve_context` so metadata questions
+  keep working.
+
+When you change `ingest.py` or `retrieval.py`, re-read these tests
+first to check you're not breaking a contract.
+
+## What not to test
+- **LLM output content (non-deterministic)** — test shape
+  (`isinstance(result, str)`, `len(result) > 0`), not prose
+- **Prompt strings verbatim** — they change; test behavior under mocked
+  LLM responses instead
+- **Private helpers of production code** (leading `_`) — test the public
+  surface only
+- **Third-party library internals** — if LangChain's `AIMessage` changes
+  shape, that's on them
+
+## Expected CI output
+`5 passed, 7 skipped` is the baseline. Skips = API-gated tests. A drop
+in passes, OR a skip that flips into a fail, is the signal to
+investigate.
+
+## See also
+@AGENTS.md

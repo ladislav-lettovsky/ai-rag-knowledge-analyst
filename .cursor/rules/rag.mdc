@@ -1,0 +1,100 @@
+---
+description: RAG pipeline conventions — retrieval, chunking, modes, and evaluation for this repo
+globs: src/rag_analyst/**/*.py
+---
+
+# RAG conventions for rag-analyst
+
+## Three modes, apples-to-apples
+`response.py` exposes three functions that must remain directly comparable
+on the same question:
+
+- `llm_response()` — parametric knowledge only, no system prompt, no retrieval
+- `eng_response()` — same model + a prompt-engineered system message (`LLM_SYSTEM_PROMPT`)
+- `rag_response()` — same model + `RAG_SYSTEM_PROMPT` + retrieved context
+
+The point of the product is the diff between them. Do not introduce
+per-mode differences in temperature, top-p, model, or max tokens — all
+sampling settings come from `config.py` and apply uniformly unless the
+mode's definition inherently requires a change.
+
+## Retrieval contract — a single joined string
+`retrieval.py::retrieve_context(query, vectorstore, document_chunks, k)`
+returns **one `". ".join(...)`-joined string**. Callers in `response.py`
+drop it into the RAG prompt verbatim. If you need structured retrieval
+output (per-chunk scores, source metadata), add a NEW function — do not
+change this signature or return type.
+
+## First-chunk injection is deliberate
+`retrieve_context` always prepends `document_chunks[0].page_content` if
+similarity search didn't return it. The HBR PDF's cover page carries
+authors + publisher metadata that is semantically distant from most
+queries, so vanilla similarity consistently misses it.
+
+If you refactor retrieval:
+- Keep the injection, OR
+- Explicitly document the new attribution strategy, AND
+- Update `test_retrieval.py::test_first_chunk_always_included`
+
+Silently dropping the injection breaks "who wrote this?" questions with
+zero CI signal.
+
+## Chunking is token-aware
+`ingest.py::chunk_documents` uses
+`RecursiveCharacterTextSplitter.from_tiktoken_encoder` with
+`CHUNK_SIZE=256` tokens and `CHUNK_OVERLAP=20`. The test
+`test_ingest.py::test_chunks_under_max_tokens` asserts every chunk
+stays under **512** tokens (2× ceiling for splitter slack).
+
+If you change `CHUNK_SIZE`, update the test bound in the same PR.
+Do not loosen the test to hide a regression.
+
+## LLM initialization: lazy, inside helpers
+Never instantiate `OpenAI(...)` or `ChatOpenAI(...)` at module top level.
+Pattern (see `response.py::_get_client`, `evaluation.py::_get_evaluate_llm`):
+
+```python
+_client: OpenAI | None = None
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI(base_url=OPENAI_BASE_URL)
+    return _client
+```
+
+Why lazy: top-level instantiation triggers API-key checks at import time,
+breaks mocking in tests, and slows CLI startup.
+
+## LangChain kwargs: ty-suppress at the call site
+`ChatOpenAI(base_url=...)` and `OpenAIEmbeddings(api_key=..., base_url=...)`
+are accepted at runtime but not declared in LangChain's exported stubs.
+Add `# ty: ignore[unknown-argument]` on the offending lines — do not
+rewrite around it, do not silence globally.
+
+## `.content` of AIMessage is a union, not str
+`ChatOpenAI.invoke(...).content` has type `str | list[str | dict]`.
+Flatten to `str` before calling string methods — see `evaluation.py`
+for the pattern: check `isinstance(content, list)`, join parts, then
+`.strip()`.
+
+## Evaluation model > generation model
+`MODEL_EVALUATION` (GPT-4o) is deliberately more capable than
+`MODEL_GENERATION` (GPT-4o-mini). LLM-as-judge is only meaningful when
+the judge is at least as capable as the generator. Don't unify them
+without an explicit discussion.
+
+## Environment-driven config
+All tunables — model names, API key, base URL, chunk size/overlap,
+sampling params — live in `.env` and are read through
+`rag_analyst.config`. Never hardcode a model name, temperature, or base
+URL in a function body.
+
+## Chroma is in-memory, per-run
+`build_vectorstore` creates a fresh Chroma every CLI invocation. This is
+fine for the ~20-page document we use. Do NOT add disk persistence
+without discussion — it materially changes the test surface, the CLI
+contract, and the failure modes.
+
+## See also
+@AGENTS.md
