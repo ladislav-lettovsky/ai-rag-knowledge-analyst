@@ -1,6 +1,7 @@
 # AI-Powered RAG Business Report Analyst
 
 [![CI](https://github.com/ladislav-lettovsky/ai-rag-knowledge-analyst/actions/workflows/ci.yml/badge.svg)](https://github.com/ladislav-lettovsky/ai-rag-knowledge-analyst/actions/workflows/ci.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ladislav-lettovsky/ai-rag-knowledge-analyst)
 
 A Retrieval-Augmented Generation (RAG) application that enables business analysts to extract key insights from lengthy reports through natural-language queries — built as a capstone project for the **UT Austin Postgraduate Program in AI / ML (Agentic AI specialization)**.
 
